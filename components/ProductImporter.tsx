@@ -33,7 +33,7 @@ function normalizeFacts(parsed: Facts): Facts {
     categories: Array.isArray(parsed.categories) ? parsed.categories.filter(value => typeof value === "string").slice(0, 20) : [],
     tags: Array.isArray(parsed.tags) ? parsed.tags.filter(value => typeof value === "string").slice(0, 30) : [],
     productType: typeof parsed.productType === "string" ? parsed.productType : "",
-    variations: Array.isArray(parsed.variations) ? parsed.variations.filter(item => item && typeof item.name === "string" && Array.isArray(item.options)).slice(0, 3) : [],
+    variations: Array.isArray(parsed.variations) ? parsed.variations.filter(item => item && typeof item.name === "string" && Array.isArray(item.options)).slice(0, 10) : [],
     availability: typeof parsed.availability === "string" ? parsed.availability : "",
     rating: typeof parsed.rating === "string" ? parsed.rating : "",
     reviewCount: typeof parsed.reviewCount === "string" ? parsed.reviewCount : ""
