@@ -93,6 +93,10 @@ export default function ProductImporter({ stores }: { stores: Store[] }) {
           <label className="form-field"><span>Brand / vendor</span><input value={facts.brand || ""} onChange={e => setFacts({ ...facts, brand: e.target.value })} placeholder="Brand" /></label>
         </div>
         <label className="form-field"><span>Source description / facts</span><textarea rows={7} value={facts.description || ""} onChange={e => setFacts({ ...facts, description: e.target.value })} placeholder="Paste accurate product facts here if URL import is unavailable." /></label>
+        <div className="mini-section">
+          <span>Extracted images ({facts.images?.length || 0})</span>
+          {facts.images?.length ? <div className="product-image-grid">{facts.images.map((image, index) => <div className="product-image" key={image}><img src={image} alt={`Extracted product image ${index + 1}`} /><button type="button" onClick={() => setFacts({ ...facts, images: facts.images?.filter(item => item !== image) })}>Remove</button></div>)}</div> : <div className="image-empty">Images found on the product page will appear here.</div>}
+        </div>
         <div className="section-divider" />
         <div className="panel-head"><div><span className="eyebrow">STEP 2</span><h2>AI SEO rewrite</h2><p>Creates original copy while preserving factual attributes.</p></div><button className="button primary" onClick={optimize} disabled={!!busy || !(facts.title || product.title)}>{busy === "ai" ? "Generating…" : "Generate with AI"}</button></div>
         <label className="form-field"><span>SEO product title</span><input value={product.title} onChange={e => setProduct({ ...product, title: e.target.value })} /></label>
