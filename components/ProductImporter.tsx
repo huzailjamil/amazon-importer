@@ -14,6 +14,7 @@ export default function ProductImporter({ stores }: { stores: Store[] }) {
   const [product, setProduct] = useState<Product>(blank);
   const [selectedStore, setSelectedStore] = useState(stores[0]?.id || "");
   const [savedId, setSavedId] = useState("");
+  const [browserData, setBrowserData] = useState("");
   const [busy, setBusy] = useState<"" | "import" | "ai" | "save" | "publish">("");
   const [message, setMessage] = useState("Paste an authorized product page URL, or enter facts manually.");
   const tagsText = useMemo(() => product.tags.join(", "), [product.tags]);
@@ -29,6 +30,29 @@ export default function ProductImporter({ stores }: { stores: Store[] }) {
       setMessage("Product facts imported. Review them, then run AI optimization.");
     } catch (e) { setMessage(e instanceof Error ? e.message : "Import failed"); }
     finally { setBusy(""); }
+  }
+
+  function importBrowserData() {
+    try {
+      const parsed = JSON.parse(browserData) as Facts;
+      if (!parsed.title || typeof parsed.title !== "string") throw new Error("Copied product data does not contain a title");
+      const imported: Facts = {
+        sourceUrl: typeof parsed.sourceUrl === "string" ? parsed.sourceUrl : "",
+        title: parsed.title,
+        description: typeof parsed.description === "string" ? parsed.description : "",
+        brand: typeof parsed.brand === "string" ? parsed.brand : "",
+        sku: typeof parsed.sku === "string" ? parsed.sku : "",
+        price: typeof parsed.price === "string" ? parsed.price : "",
+        currency: typeof parsed.currency === "string" ? parsed.currency : "",
+        images: Array.isArray(parsed.images) ? parsed.images.filter(value => typeof value === "string").slice(0, 12) : []
+      };
+      setFacts(imported);
+      if (imported.sourceUrl) setUrl(imported.sourceUrl);
+      setProduct(current => ({ ...current, title: imported.title || current.title, descriptionHtml: imported.description || current.descriptionHtml }));
+      setMessage(`Browser product data loaded with ${imported.images?.length || 0} images.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not read copied browser data");
+    }
   }
 
   async function optimize() {
@@ -88,6 +112,12 @@ export default function ProductImporter({ stores }: { stores: Store[] }) {
       <section className="panel large-panel">
         <div className="panel-head"><div><span className="eyebrow">STEP 1</span><h2>Import product facts</h2><p>Paste an Amazon or supplier product page URL. The importer will extract available public product facts for review.</p></div></div>
         <div className="url-row"><input value={url} onChange={e => setUrl(e.target.value)} placeholder="https://supplier.example.com/product/..." /><button className="button secondary" onClick={importUrl} disabled={!url || !!busy}>{busy === "import" ? "Importing…" : "Import URL"}</button></div>
+        <details className="browser-import">
+          <summary>Amazon returned a CAPTCHA? Import from the browser helper</summary>
+          <p>Open the product in Amazon, use the Product Importer browser helper, then paste the copied data below.</p>
+          <textarea rows={4} value={browserData} onChange={event => setBrowserData(event.target.value)} placeholder='Paste copied product data here…' />
+          <button className="button secondary" type="button" onClick={importBrowserData} disabled={!browserData.trim()}>Load copied product</button>
+        </details>
         <div className="two-col">
           <label className="form-field"><span>Source title</span><input value={facts.title || ""} onChange={e => setFacts({ ...facts, title: e.target.value })} placeholder="Original product title" /></label>
           <label className="form-field"><span>Brand / vendor</span><input value={facts.brand || ""} onChange={e => setFacts({ ...facts, brand: e.target.value })} placeholder="Brand" /></label>
