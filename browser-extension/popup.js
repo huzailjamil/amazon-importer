@@ -31,7 +31,9 @@ document.getElementById("send").addEventListener("click", async () => {
     const tabs = await chrome.tabs.query({ url: "https://importer.legendsmarketing.co.uk/*" });
     const dashboardTab = tabs.find(tab => tab.url?.includes("/dashboard/import"));
     if (dashboardTab?.id) {
-      await chrome.tabs.update(dashboardTab.id, { active: true, url: dashboardUrl });
+      // Setting a tab to its current URL forces a full reload and can wipe the
+      // dashboard form before the extension payload is accepted.
+      await chrome.tabs.update(dashboardTab.id, { active: true });
       if (dashboardTab.windowId) await chrome.windows.update(dashboardTab.windowId, { focused: true });
     } else {
       await chrome.tabs.create({ url: dashboardUrl, active: true });
