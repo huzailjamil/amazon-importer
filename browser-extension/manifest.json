@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "Product Importer Amazon Helper",
+  "version": "1.0.0",
+  "description": "Copies product facts and images from the Amazon page open in your browser.",
+  "permissions": ["activeTab", "scripting", "clipboardWrite"],
+  "action": {
+    "default_title": "Copy Amazon product",
+    "default_popup": "popup.html"
+  }
+}
