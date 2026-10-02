@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 type VariationOption = { value: string; asin?: string; available?: boolean; selected?: boolean };
 type Variation = { name: string; selected?: string; options: VariationOption[] };
@@ -48,6 +48,7 @@ export default function ProductImporter({ stores }: { stores: Store[] }) {
   const [savedId, setSavedId] = useState("");
   const [browserData, setBrowserData] = useState("");
   const [showDraftPrompt, setShowDraftPrompt] = useState(false);
+  const lastExtensionImport = useRef("");
   const [busy, setBusy] = useState<"" | "import" | "ai" | "save" | "publish">("");
   const [message, setMessage] = useState("Paste an authorized product page URL, or enter facts manually.");
   const tagsText = useMemo(() => product.tags.join(", "), [product.tags]);
@@ -66,19 +67,43 @@ export default function ProductImporter({ stores }: { stores: Store[] }) {
   }
 
   useEffect(() => {
-    function receiveExtensionProduct(event: MessageEvent) {
-      if (event.source !== window || event.origin !== window.location.origin) return;
-      if (event.data?.source !== "product-importer-extension" || event.data?.type !== "AMAZON_PRODUCT" || typeof event.data.payload !== "string") return;
+    function acceptExtensionProduct(data: { source?: string; type?: string; id?: string; payload?: string }) {
+      if (data?.source !== "product-importer-extension" || data?.type !== "AMAZON_PRODUCT" || typeof data.payload !== "string") return;
+      if (data.id && lastExtensionImport.current === data.id) return;
       try {
-        if (event.data.payload.length > 2_000_000) throw new Error("Extension product data is too large");
-        loadFacts(normalizeFacts(JSON.parse(event.data.payload) as Facts), true);
-        window.postMessage({ source: "product-importer-dashboard", type: "AMAZON_PRODUCT_ACCEPTED", id: event.data.id }, window.location.origin);
+        if (data.payload.length > 2_000_000) throw new Error("Extension product data is too large");
+        if (data.id) lastExtensionImport.current = data.id;
+        loadFacts(normalizeFacts(JSON.parse(data.payload) as Facts), true);
+        const bridge = document.getElementById("product-importer-extension-payload");
+        if (bridge && data.id) bridge.dataset.accepted = data.id;
+        window.postMessage({ source: "product-importer-dashboard", type: "AMAZON_PRODUCT_ACCEPTED", id: data.id }, window.location.origin);
       } catch (error) {
         setMessage(error instanceof Error ? error.message : "Could not load extension product data");
       }
     }
+    function receiveExtensionProduct(event: MessageEvent) {
+      if (event.source !== window || event.origin !== window.location.origin) return;
+      acceptExtensionProduct(event.data);
+    }
+    function receiveExtensionEvent(event: Event) {
+      const detail = (event as CustomEvent<string>).detail;
+      if (typeof detail !== "string") return;
+      try { acceptExtensionProduct(JSON.parse(detail)); } catch {}
+    }
+    function readBridgeElement() {
+      const serialized = document.getElementById("product-importer-extension-payload")?.textContent;
+      if (!serialized) return;
+      try { acceptExtensionProduct(JSON.parse(serialized)); } catch {}
+    }
     window.addEventListener("message", receiveExtensionProduct);
-    return () => window.removeEventListener("message", receiveExtensionProduct);
+    window.addEventListener("product-importer:amazon-product", receiveExtensionEvent);
+    const bridgeTimer = window.setInterval(readBridgeElement, 400);
+    readBridgeElement();
+    return () => {
+      window.removeEventListener("message", receiveExtensionProduct);
+      window.removeEventListener("product-importer:amazon-product", receiveExtensionEvent);
+      window.clearInterval(bridgeTimer);
+    };
   }, []);
 
   async function importUrl() {
