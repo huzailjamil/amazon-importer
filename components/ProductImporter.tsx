@@ -40,6 +40,15 @@ function normalizeFacts(parsed: Facts): Facts {
   };
 }
 
+function descriptionWithSpecifications(imported: Facts) {
+  const description = (imported.description || "").trim();
+  const specifications = Object.entries(imported.specifications || {})
+    .filter(([key, value]) => key.trim() && String(value).trim())
+    .map(([key, value]) => `• ${key}: ${String(value).trim()}`);
+  if (!specifications.length) return description;
+  return [description, ["Specifications", ...specifications].join("\n")].filter(Boolean).join("\n\n");
+}
+
 export default function ProductImporter({ stores }: { stores: Store[] }) {
   const [url, setUrl] = useState("");
   const [facts, setFacts] = useState<Facts>({});
@@ -59,7 +68,7 @@ export default function ProductImporter({ stores }: { stores: Store[] }) {
     setProduct(current => ({
       ...current,
       title: imported.title || current.title,
-      descriptionHtml: imported.description || current.descriptionHtml,
+      descriptionHtml: descriptionWithSpecifications(imported) || current.descriptionHtml,
       tags: imported.tags?.length ? imported.tags : current.tags
     }));
     setShowDraftPrompt(fromExtension);
@@ -112,8 +121,9 @@ export default function ProductImporter({ stores }: { stores: Store[] }) {
       const res = await fetch("/api/import/url", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url }) });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Import failed");
-      setFacts(json.productFacts);
-      setProduct(p => ({ ...p, title: json.productFacts.title || p.title, descriptionHtml: json.productFacts.description || p.descriptionHtml }));
+      const imported = normalizeFacts(json.productFacts as Facts);
+      setFacts(imported);
+      setProduct(p => ({ ...p, title: imported.title || p.title, descriptionHtml: descriptionWithSpecifications(imported) || p.descriptionHtml }));
       setMessage("Product facts imported. Review them, then run AI optimization.");
     } catch (e) { setMessage(e instanceof Error ? e.message : "Import failed"); }
     finally { setBusy(""); }
