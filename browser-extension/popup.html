@@ -5,13 +5,14 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Product Importer</title>
     <style>
-      body{font:13px system-ui,sans-serif;width:290px;margin:0;padding:16px;color:#171b23}h1{font-size:16px;margin:0 0 8px}p{color:#626b78;line-height:1.4}button{width:100%;border:0;border-radius:9px;padding:10px;background:#4f46e5;color:white;font-weight:700;cursor:pointer}#status{font-size:12px;margin-top:10px;min-height:18px}
+      body{font:13px system-ui,sans-serif;width:310px;margin:0;padding:16px;color:#171b23}h1{font-size:16px;margin:0 0 8px}p{color:#626b78;line-height:1.4}button{width:100%;border:0;border-radius:9px;padding:10px;background:#4f46e5;color:white;font-weight:700;cursor:pointer;margin-top:8px}button.secondary{background:#eef0f4;color:#252b35}#status{font-size:12px;margin-top:10px;min-height:18px;line-height:1.4}
     </style>
   </head>
   <body>
     <h1>Amazon Product Importer</h1>
-    <p>Open an Amazon product page and copy its available product facts and images.</p>
-    <button id="copy">Copy product data</button>
+    <p>Open an Amazon product page, then send all available product data directly to your importer.</p>
+    <button id="send">Send to dashboard</button>
+    <button id="copy" class="secondary">Copy JSON instead</button>
     <div id="status"></div>
     <script src="popup.js"></script>
   </body>

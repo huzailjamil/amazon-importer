@@ -3,9 +3,11 @@ import { z } from "zod";
 import { getCurrentUser } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { assertSameOrigin } from "@/lib/security/origin";
+import { Prisma } from "@prisma/client";
 
 const Schema = z.object({
   sourceUrl: z.string().max(2000).optional().or(z.literal("")),
+  sourceExternalId: z.string().max(255).optional().or(z.literal("")),
   title: z.string().min(2).max(255),
   descriptionHtml: z.string().max(100000),
   vendor: z.string().max(255).optional(),
@@ -17,6 +19,7 @@ const Schema = z.object({
   secondaryKeywords: z.array(z.string()).max(30),
   imageAltText: z.array(z.string()).max(30),
   images: z.array(z.string()).max(30),
+  rawData: z.record(z.string(), z.unknown()).optional(),
   seoScore: z.number().min(0).max(100).optional()
 });
 
@@ -30,6 +33,7 @@ export async function POST(req: NextRequest) {
       userId: user.id,
       sourceType: p.sourceUrl ? "url" : "manual",
       sourceUrl: p.sourceUrl || null,
+      sourceExternalId: p.sourceExternalId || null,
       title: p.title,
       descriptionHtml: p.descriptionHtml,
       vendor: p.vendor || null,
@@ -41,6 +45,7 @@ export async function POST(req: NextRequest) {
       secondaryKeywords: p.secondaryKeywords,
       imageAltText: p.imageAltText,
       images: p.images,
+      rawData: p.rawData as Prisma.InputJsonValue | undefined,
       seoScore: p.seoScore ?? null
     } });
     return NextResponse.json({ product: { id: product.id, title: product.title } });

@@ -34,7 +34,8 @@ export async function POST(req: NextRequest) {
         vendor: product.vendor,
         productType: product.productType,
         images: Array.isArray(product.images) ? product.images as string[] : [],
-        imageAltText: Array.isArray(product.imageAltText) ? product.imageAltText as string[] : []
+        imageAltText: Array.isArray(product.imageAltText) ? product.imageAltText as string[] : [],
+        rawData: product.rawData
       }
     });
     await db.product.update({ where: { id: product.id }, data: { storeId: store.id, status: "SHOPIFY_DRAFT", shopifyProductId: created.id, lastError: null } });

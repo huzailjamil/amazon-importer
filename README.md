@@ -24,7 +24,7 @@ Secure multi-user ecommerce product importer for a single Linux/cPanel server.
 
 Paste a public Amazon product URL into the importer to extract the available title, description and feature bullets, brand, ASIN, price, currency, and product images. Amazon may sometimes return a CAPTCHA or block automated requests; the importer reports that condition and does not attempt to bypass it. Page markup can change, so the extractor may require maintenance. Only reuse content and images you have permission to use.
 
-When a hosting provider's server IP is blocked, use the Chrome helper in `browser-extension`. Load that folder as an unpacked extension, open the Amazon product page, click **Copy product data**, and paste the result into the browser-helper section of the import screen. This reads the page already open in the user's browser and does not bypass Amazon CAPTCHA challenges.
+When a hosting provider's server IP is blocked, use the Chrome helper in `browser-extension`. Load that folder as an unpacked extension, open the Amazon product page, and click **Send to dashboard**. The helper captures the available title, description, features, specifications, categories, source tags, price, availability, ratings, gallery and A+ images, loaded videos, and variation options. It opens the import dashboard, transfers the data locally through the extension, and prompts the user to save a draft or review it first. **Copy JSON instead** remains available as a manual fallback. This reads the page already open in the user's browser and does not bypass Amazon CAPTCHA challenges.
 
 ## cPanel deployment
 
