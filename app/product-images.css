@@ -42,3 +42,32 @@
   color: #9299a5;
   font-size: 12px;
 }
+
+.browser-import {
+  margin: -4px 0 18px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 11px 12px;
+  background: #fafbfc;
+}
+
+.browser-import summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.browser-import p {
+  margin: 10px 0;
+  font-size: 12px;
+}
+
+.browser-import textarea {
+  display: block;
+  width: 100%;
+  resize: vertical;
+  border: 1px solid #dfe4eb;
+  border-radius: 10px;
+  padding: 10px;
+  margin-bottom: 9px;
+}
