@@ -204,7 +204,7 @@ function extractAmazonProduct() {
         const value = Array.isArray(values) ? clean(values[index]) : "";
         return {
           value,
-          dataset: { asin: optionAsin },
+          dataset: { asin: optionAsin, value },
           className: optionAsin === asin ? "selected" : "",
           getAttribute: attribute => attribute === "aria-checked" ? String(optionAsin === asin) : null,
           closest: () => null,
