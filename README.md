@@ -20,9 +20,9 @@ Secure multi-user ecommerce product importer for a single Linux/cPanel server.
 - Shopify products are always created as DRAFT
 - cPanel-compatible Webpack build (`next build --webpack`)
 
-## Important Amazon note
+## Amazon URL imports
 
-Direct Amazon page scraping is intentionally not enabled. Amazon pages should be integrated via an authorized Amazon API/feed or another source you have the right to reuse. Users can still paste accurate product facts manually and use the AI rewrite/SEO workflow.
+Paste a public Amazon product URL into the importer to extract the available title, description and feature bullets, brand, ASIN, price, currency, and product images. Amazon may sometimes return a CAPTCHA or block automated requests; the importer reports that condition and does not attempt to bypass it. Page markup can change, so the extractor may require maintenance. Only reuse content and images you have permission to use.
 
 ## cPanel deployment
 
