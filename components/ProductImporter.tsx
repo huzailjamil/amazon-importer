@@ -86,7 +86,7 @@ export default function ProductImporter({ stores }: { stores: Store[] }) {
   return (
     <div className="workspace-grid">
       <section className="panel large-panel">
-        <div className="panel-head"><div><span className="eyebrow">STEP 1</span><h2>Import product facts</h2><p>Use a supplier/product page you are authorized to reuse. Amazon requires an authorized API/feed rather than direct page scraping.</p></div></div>
+        <div className="panel-head"><div><span className="eyebrow">STEP 1</span><h2>Import product facts</h2><p>Paste an Amazon or supplier product page URL. The importer will extract available public product facts for review.</p></div></div>
         <div className="url-row"><input value={url} onChange={e => setUrl(e.target.value)} placeholder="https://supplier.example.com/product/..." /><button className="button secondary" onClick={importUrl} disabled={!url || !!busy}>{busy === "import" ? "Importing…" : "Import URL"}</button></div>
         <div className="two-col">
           <label className="form-field"><span>Source title</span><input value={facts.title || ""} onChange={e => setFacts({ ...facts, title: e.target.value })} placeholder="Original product title" /></label>
