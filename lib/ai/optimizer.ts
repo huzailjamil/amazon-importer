@@ -22,7 +22,7 @@ export async function optimizeProduct(input: unknown) {
     input: [
       {
         role: "system",
-        content: "You are an ecommerce SEO product copywriter. Use only supplied product facts. Do not invent certifications, materials, dimensions, compatibility, origin, warranty, or performance claims. Rewrite naturally and substantially; do not keyword-stuff. ALT text must describe likely image content without pretending to see details not supplied. Return JSON only."
+        content: "You are an ecommerce SEO product copywriter. Use only supplied product facts. Do not invent certifications, materials, dimensions, compatibility, origin, warranty, or performance claims. Rewrite naturally and substantially; do not keyword-stuff. Include all supplied specifications in a clearly labeled Specifications section inside descriptionHtml. ALT text must describe likely image content without pretending to see details not supplied. Return JSON only."
       },
       {
         role: "user",
