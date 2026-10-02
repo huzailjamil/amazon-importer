@@ -93,23 +93,130 @@ function extractAmazonProduct() {
   });
   const categories = [...document.querySelectorAll("#wayfinding-breadcrumbs_feature_div li a, #wayfinding-breadcrumbs_container li a")]
     .map(safeText).filter(Boolean);
-  const variations = [...document.querySelectorAll("[id^='variation_'][id$='_name']")].map(group => {
-    const rawName = group.id.replace(/^variation_/, "").replace(/_name$/, "").replace(/_/g, " ");
-    const name = safeText(group.querySelector(".a-form-label")).replace(/[:\u200e\u200f]+$/g, "") || rawName.replace(/\b\w/g, letter => letter.toUpperCase());
-    const selected = safeText(group.querySelector(".selection, .a-dropdown-prompt"));
-    const options = [];
-    group.querySelectorAll("li").forEach(option => {
-      const value = clean(option.querySelector("img")?.alt || safeText(option.querySelector(".a-button-text")) || safeText(option));
-      if (!value) return;
-      options.push({ value, asin: clean(option.dataset.defaultasin || option.dataset.asin), available: !/unavailable|swatchunavailable|disabled/i.test(option.className) && option.getAttribute("aria-disabled") !== "true", selected: option.classList.contains("selected") || option.getAttribute("aria-checked") === "true" });
+  const variationMap = new Map();
+  const titleCase = value => clean(value).replace(/_name$/i, "").replace(/[_-]+/g, " ").replace(/\b\w/g, letter => letter.toUpperCase());
+  const dimensionKey = element => {
+    const id = element?.id || "";
+    return id.match(/^variation_(.+?)_name$/i)?.[1] ||
+      id.match(/^native_dropdown_selected_(.+?)_name$/i)?.[1] ||
+      clean(element?.dataset?.dimension || element?.getAttribute?.("data-dimension") || "").replace(/_name$/i, "");
+  };
+  const readOptionValue = option => {
+    let dataValue = clean(option?.dataset?.value);
+    if (dataValue.startsWith("{")) {
+      try {
+        const parsed = JSON.parse(dataValue);
+        dataValue = clean(parsed.stringVal || parsed.value || parsed.name);
+      } catch {}
+    }
+    return clean(
+      option?.querySelector?.("img")?.alt ||
+      option?.getAttribute?.("aria-label") ||
+      option?.getAttribute?.("title") ||
+      dataValue ||
+      safeText(option?.querySelector?.(".a-button-text")) ||
+      safeText(option)
+    ).replace(/\s*(?:-|–)?\s*(?:Currently unavailable|Unavailable)$/i, "");
+  };
+  const addVariation = (key, explicitName, selected, optionNodes = []) => {
+    if (!key) return;
+    const normalizedKey = key.toLowerCase();
+    const current = variationMap.get(normalizedKey) || { name: explicitName || titleCase(key), selected: "", options: [] };
+    if (explicitName) current.name = explicitName;
+    if (selected) current.selected = selected;
+    optionNodes.forEach(option => {
+      const value = readOptionValue(option);
+      if (!value || /^-?\s*(?:select|choose)\b/i.test(value)) return;
+      const owner = option.closest?.("[data-defaultasin], [data-asin]") || option;
+      const asinValue = clean(owner?.dataset?.defaultasin || owner?.dataset?.asin || option.value).match(/[A-Z0-9]{10}/i)?.[0] || "";
+      const unavailable = option.disabled ||
+        option.getAttribute?.("aria-disabled") === "true" ||
+        /unavailable|swatchunavailable|disabled/i.test(`${option.className || ""} ${owner?.className || ""}`);
+      const selectedOption = option.selected ||
+        option.checked ||
+        option.getAttribute?.("aria-checked") === "true" ||
+        /\bselected\b/i.test(`${option.className || ""} ${owner?.className || ""}`);
+      const existing = current.options.find(item => item.value.toLowerCase() === value.toLowerCase());
+      const next = { value, asin: asinValue, available: !unavailable, selected: !!selectedOption };
+      if (existing) Object.assign(existing, { asin: existing.asin || next.asin, available: existing.available || next.available, selected: existing.selected || next.selected });
+      else current.options.push(next);
+      if (selectedOption && !current.selected) current.selected = value;
     });
-    group.querySelectorAll("select option").forEach(option => {
-      const value = safeText(option);
-      if (!value || /^-?\s*select/i.test(value)) return;
-      options.push({ value, asin: clean(option.value).match(/[A-Z0-9]{10}/i)?.[0] || "", available: !option.disabled, selected: option.selected });
+    variationMap.set(normalizedKey, current);
+  };
+
+  document.querySelectorAll("[id^='variation_'][id$='_name'], select[id^='native_dropdown_selected_'][id$='_name']").forEach(group => {
+    const key = dimensionKey(group);
+    if (!key) return;
+    const label = safeText(group.querySelector?.(".a-form-label")) ||
+      safeText(document.querySelector(`label[for="${CSS.escape(group.id)}"]`)).replace(/[:\u200e\u200f]+$/g, "") ||
+      titleCase(key);
+    const select = group.matches?.("select") ? group : group.querySelector?.("select");
+    const selected = select ? readOptionValue(select.selectedOptions?.[0]) : safeText(group.querySelector?.(".selection, .a-dropdown-prompt"));
+    const nodes = select
+      ? [...select.options]
+      : [...group.querySelectorAll("li, option, [data-defaultasin], [data-asin], button[role='radio']")];
+    addVariation(key, label, selected, nodes);
+  });
+
+  document.querySelectorAll("#twister_feature_div [role='radiogroup'], #twister_feature_div select").forEach(group => {
+    const key = dimensionKey(group) ||
+      clean(group.getAttribute("aria-label")).replace(/^(?:choose|select)\s+/i, "").replace(/\s+/g, "_") ||
+      clean(group.closest("[id]")?.id).match(/(?:variation|twister)[_-](.+?)(?:_name)?$/i)?.[1];
+    if (!key) return;
+    const label = clean(group.getAttribute("aria-label")).replace(/^(?:choose|select)\s+/i, "") || titleCase(key);
+    const nodes = group.matches("select") ? [...group.options] : [...group.querySelectorAll("[role='radio'], [data-defaultasin], [data-asin], button, li")];
+    addVariation(key, label, "", nodes);
+  });
+
+  function readJsonValueAfter(source, property, opening, closing) {
+    const propertyIndex = source.indexOf(`"${property}"`);
+    if (propertyIndex < 0) return null;
+    const startIndex = source.indexOf(opening, propertyIndex);
+    if (startIndex < 0) return null;
+    let depth = 0, quoted = false, escaped = false;
+    for (let index = startIndex; index < source.length; index += 1) {
+      const character = source[index];
+      if (quoted) {
+        if (escaped) escaped = false;
+        else if (character === "\\") escaped = true;
+        else if (character === '"') quoted = false;
+        continue;
+      }
+      if (character === '"') quoted = true;
+      else if (character === opening) depth += 1;
+      else if (character === closing && --depth === 0) {
+        try { return JSON.parse(source.slice(startIndex, index + 1)); } catch { return null; }
+      }
+    }
+    return null;
+  }
+
+  for (const script of document.scripts) {
+    const source = script.textContent || "";
+    if (!source.includes('"dimensionValuesDisplayData"')) continue;
+    const dimensions = readJsonValueAfter(source, "dimensions", "[", "]");
+    const displayData = readJsonValueAfter(source, "dimensionValuesDisplayData", "{", "}");
+    if (!Array.isArray(dimensions) || !displayData || typeof displayData !== "object") continue;
+    dimensions.forEach((dimension, index) => {
+      const key = clean(dimension).replace(/_name$/i, "");
+      const syntheticOptions = Object.entries(displayData).map(([optionAsin, values]) => {
+        const value = Array.isArray(values) ? clean(values[index]) : "";
+        return {
+          value,
+          dataset: { asin: optionAsin },
+          className: optionAsin === asin ? "selected" : "",
+          getAttribute: attribute => attribute === "aria-checked" ? String(optionAsin === asin) : null,
+          closest: () => null,
+          querySelector: () => null
+        };
+      }).filter(option => option.value);
+      addVariation(key, titleCase(key), "", syntheticOptions);
     });
-    return { name, selected, options: [...new Map(options.map(option => [option.value.toLowerCase(), option])).values()] };
-  }).filter(dimension => dimension.options.length);
+    break;
+  }
+  const variations = [...variationMap.values()].filter(dimension => dimension.options.length);
+
   const sourceTags = [...new Set([brand, ...categories, ...variations.map(item => item.name)].map(clean).filter(Boolean))].slice(0, 30);
   const rating = text(["#acrPopover .a-icon-alt", "#averageCustomerReviews .a-icon-alt"]);
   const reviewCount = text(["#acrCustomerReviewText"]);
