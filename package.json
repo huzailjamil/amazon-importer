@@ -1,0 +1,30 @@
+{
+  "name": "product-importer-v2",
+  "version": "0.2.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build --webpack",
+    "start": "node server.js",
+    "prisma:generate": "prisma generate",
+    "prisma:push": "prisma db push",
+    "seed:admin": "node scripts/seed-admin.mjs"
+  },
+  "dependencies": {
+    "@prisma/client": "6.19.0",
+    "bcryptjs": "3.0.2",
+    "cheerio": "1.1.2",
+    "next": "16.3.8",
+    "openai": "6.9.0",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "zod": "4.1.12"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.0",
+    "@types/react": "19.2.2",
+    "@types/react-dom": "19.2.2",
+    "prisma": "6.19.0",
+    "typescript": "5.9.3"
+  }
+}

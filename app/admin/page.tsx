@@ -1,0 +1,11 @@
+import { db } from "@/lib/db";
+import { requireAdmin } from "@/lib/auth/session";
+
+export default async function AdminPage() {
+  await requireAdmin();
+  const [users, stores, products, activities] = await Promise.all([
+    db.user.findMany({ select: { id: true, name: true, email: true, role: true, isActive: true, createdAt: true, _count: { select: { products: true, stores: true } } }, orderBy: { createdAt: "desc" }, take: 100 }),
+    db.store.count(), db.product.count(), db.activityLog.findMany({ include: { user: { select: { email: true } } }, orderBy: { createdAt: "desc" }, take: 15 })
+  ]);
+  return <><header className="page-head"><div><span className="eyebrow">ADMIN CONSOLE</span><h1>Platform overview</h1><p>Monitor users, stores and recent activity without exposing store access tokens.</p></div></header><section className="stat-grid"><div className="stat-card"><span>Users</span><strong>{users.length}</strong><small>Registered accounts</small></div><div className="stat-card"><span>Stores</span><strong>{stores}</strong><small>Connected destinations</small></div><div className="stat-card"><span>Products</span><strong>{products}</strong><small>Saved drafts</small></div><div className="stat-card accent"><span>Security</span><strong>ON</strong><small>Protected routes + sessions</small></div></section><section className="panel dashboard-panel"><div className="panel-head"><div><span className="eyebrow">USERS</span><h2>Registered accounts</h2></div></div><div className="table-wrap"><table><thead><tr><th>User</th><th>Role</th><th>Status</th><th>Products</th><th>Stores</th><th>Joined</th></tr></thead><tbody>{users.map(u => <tr key={u.id}><td><strong>{u.name}</strong><small>{u.email}</small></td><td>{u.role}</td><td><span className="status-pill">{u.isActive ? "ACTIVE" : "DISABLED"}</span></td><td>{u._count.products}</td><td>{u._count.stores}</td><td>{u.createdAt.toLocaleDateString()}</td></tr>)}</tbody></table></div></section><section className="panel dashboard-panel"><div className="panel-head"><div><span className="eyebrow">AUDIT TRAIL</span><h2>Recent activity</h2></div></div><div className="activity-list">{activities.map(a => <div key={a.id}><strong>{a.action}</strong><span>{a.user?.email || "system"}</span><small>{a.createdAt.toLocaleString()}</small></div>)}</div></section></>;
+}
