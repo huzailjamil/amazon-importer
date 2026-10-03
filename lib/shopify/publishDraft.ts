@@ -8,9 +8,10 @@ mutation SetProduct($input: ProductSetInput!, $synchronous: Boolean!) {
   }
 }`;
 
-type VariationOption = { value?: unknown; asin?: unknown; available?: unknown; selected?: unknown };
+type VariationOption = { value?: unknown; asin?: unknown; available?: unknown; selected?: unknown; price?: unknown; currency?: unknown };
 type Variation = { name?: unknown; selected?: unknown; options?: unknown };
-type RawProductData = { price?: unknown; sku?: unknown; variations?: unknown; videos?: unknown };
+type VariantProduct = { asin?: unknown; options?: unknown; price?: unknown; currency?: unknown; available?: unknown };
+type RawProductData = { price?: unknown; currency?: unknown; sku?: unknown; variations?: unknown; variantProducts?: unknown; videos?: unknown };
 type PublishProduct = {
   title: string;
   descriptionHtml: string;
@@ -35,7 +36,7 @@ function variationInput(raw: RawProductData) {
     const rawOptions = Array.isArray(dimension.options) ? dimension.options as VariationOption[] : [];
     const options = rawOptions
       .filter(option => option?.available !== false)
-      .map(option => ({ value: clean(option.value), asin: clean(option.asin), selected: option.selected === true }))
+      .map(option => ({ value: clean(option.value), asin: clean(option.asin), selected: option.selected === true, price: clean(option.price, 40), currency: clean(option.currency, 10) }))
       .filter(option => option.value);
     const unique = [...new Map(options.map(option => [option.value.toLowerCase(), option])).values()];
     return { name, selected: clean(dimension.selected), options: unique };
@@ -58,8 +59,34 @@ function variationInput(raw: RawProductData) {
   const priceText = clean(raw.price, 40).replace(/,/g, "");
   const numericPrice = priceText ? Number(priceText) : Number.NaN;
   const currentSku = clean(raw.sku);
+  const productOptions = dimensions.map((dimension, position) => ({
+    name: dimension.name,
+    position: position + 1,
+    values: dimension.options.map(option => ({ name: option.value }))
+  }));
+  const exactVariants = (Array.isArray(raw.variantProducts) ? raw.variantProducts as VariantProduct[] : [])
+    .filter(variant => variant?.available !== false && variant.options && typeof variant.options === "object")
+    .map(variant => {
+      const suppliedOptions = Object.entries(variant.options as Record<string, unknown>);
+      const optionValues = dimensions.map(dimension => {
+        const match = suppliedOptions.find(([name]) => name.toLowerCase() === dimension.name.toLowerCase());
+        return { optionName: dimension.name, name: clean(match?.[1]) };
+      });
+      if (optionValues.some(option => !option.name)) return null;
+      const variantPriceText = clean(variant.price, 40).replace(/,/g, "");
+      const variantPrice = variantPriceText ? Number(variantPriceText) : numericPrice;
+      return {
+        optionValues,
+        ...(Number.isFinite(variantPrice) && variantPrice >= 0 ? { price: variantPrice } : {}),
+        ...(clean(variant.asin) ? { sku: clean(variant.asin) } : {})
+      };
+    })
+    .filter((variant): variant is NonNullable<typeof variant> => !!variant);
+  const uniqueExactVariants = [...new Map(exactVariants.map(variant => [variant.optionValues.map(option => `${option.optionName}:${option.name}`).join("|"), variant])).values()];
+
+  if (uniqueExactVariants.length) return { productOptions, variants: uniqueExactVariants.slice(0, 100) };
   return {
-    productOptions: dimensions.map((dimension, position) => ({
+    productOptions,
       name: dimension.name,
       position: position + 1,
       values: dimension.options.map(option => ({ name: option.value }))
@@ -67,9 +94,11 @@ function variationInput(raw: RawProductData) {
     variants: combinations.map(combination => {
       const isSelected = combination.every(option => option.selected || dimensions.find(dimension => dimension.name === option.name)?.selected === option.value);
       const optionAsins = [...new Set(combination.map(option => option.asin).filter(Boolean))];
+      const optionPriceText = combination.find(option => option.price)?.price?.replace(/,/g, "") || "";
+      const optionPrice = optionPriceText ? Number(optionPriceText) : numericPrice;
       return {
         optionValues: combination.map(option => ({ optionName: option.name, name: option.value })),
-        ...(Number.isFinite(numericPrice) && numericPrice >= 0 ? { price: numericPrice } : {}),
+        ...(Number.isFinite(optionPrice) && optionPrice >= 0 ? { price: optionPrice } : {}),
         ...(dimensions.length === 1 && optionAsins[0] ? { sku: optionAsins[0] } : isSelected && currentSku ? { sku: currentSku } : {})
       };
     })
