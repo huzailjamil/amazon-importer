@@ -43,7 +43,7 @@ function variationInput(raw: RawProductData) {
   }).filter(dimension => dimension.options.length).slice(0, 3);
 
   if (!dimensions.length) return {};
-  const combinations: Array<Array<{ name: string; value: string; asin: string; selected: boolean }>> = [[]];
+  const combinations: Array<Array<{ name: string; value: string; asin: string; selected: boolean; price: string; currency: string }>> = [[]];
   for (const dimension of dimensions) {
     const next: typeof combinations = [];
     for (const combination of combinations) {
@@ -87,10 +87,6 @@ function variationInput(raw: RawProductData) {
   if (uniqueExactVariants.length) return { productOptions, variants: uniqueExactVariants.slice(0, 100) };
   return {
     productOptions,
-      name: dimension.name,
-      position: position + 1,
-      values: dimension.options.map(option => ({ name: option.value }))
-    })),
     variants: combinations.map(combination => {
       const isSelected = combination.every(option => option.selected || dimensions.find(dimension => dimension.name === option.name)?.selected === option.value);
       const optionAsins = [...new Set(combination.map(option => option.asin).filter(Boolean))];
