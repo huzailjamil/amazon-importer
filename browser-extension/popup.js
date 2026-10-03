@@ -102,7 +102,7 @@ async function extractAmazonProduct() {
       id.match(/^native_dropdown_selected_(.+?)_name$/i)?.[1] ||
       clean(element?.dataset?.dimension || element?.getAttribute?.("data-dimension") || "").replace(/_name$/i, "");
   };
-  const readOptionValue = option => {
+  const readOptionText = option => {
     let dataValue = clean(option?.dataset?.value);
     if (dataValue.startsWith("{")) {
       try {
@@ -117,7 +117,36 @@ async function extractAmazonProduct() {
       dataValue ||
       safeText(option?.querySelector?.(".a-button-text")) ||
       safeText(option)
-    ).replace(/\s*(?:-|–)?\s*(?:Currently unavailable|Unavailable)$/i, "");
+    );
+  };
+  const readOptionValue = option => readOptionText(option)
+    .replace(/\s*(?:-|–)?\s*(?:Currently unavailable|Unavailable)$/i, "")
+    .replace(/\s*(?:-|–)?\s*(?:US\$|CA\$|CDN\$|A\$|\$|£|€|₹|د\.إ)\s*[\d.,]+\s*$/i, "")
+    .trim();
+  const readOptionPrice = option => {
+    const match = readOptionText(option).match(/(?:US\$|CA\$|CDN\$|A\$|\$|£|€|₹|د\.إ)\s*([\d][\d.,]*)/i);
+    if (!match) return "";
+    let amount = match[1];
+    const lastComma = amount.lastIndexOf(",");
+    const lastDot = amount.lastIndexOf(".");
+    if (lastComma >= 0 && lastDot >= 0) {
+      const decimal = lastComma > lastDot ? "," : ".";
+      amount = amount.replace(decimal === "," ? /\./g : /,/g, "").replace(decimal, ".");
+    } else if (lastComma >= 0 && amount.length - lastComma - 1 === 2) {
+      amount = amount.replace(/\./g, "").replace(",", ".");
+    } else {
+      amount = amount.replace(/,/g, "");
+    }
+    return amount;
+  };
+  const readOptionCurrency = option => {
+    const value = readOptionText(option);
+    if (/£/.test(value)) return "GBP";
+    if (/€/.test(value)) return "EUR";
+    if (/₹/.test(value)) return "INR";
+    if (/د\.إ/.test(value)) return "AED";
+    if (/(?:US\$|CA\$|CDN\$|A\$|\$)/i.test(value)) return location.hostname.endsWith(".ca") ? "CAD" : location.hostname.endsWith(".com.au") ? "AUD" : "USD";
+    return "";
   };
   const addVariation = (key, explicitName, selected, optionNodes = []) => {
     if (!key) return;
@@ -138,8 +167,8 @@ async function extractAmazonProduct() {
         option.getAttribute?.("aria-checked") === "true" ||
         /\bselected\b/i.test(`${option.className || ""} ${owner?.className || ""}`);
       const existing = current.options.find(item => item.value.toLowerCase() === value.toLowerCase());
-      const next = { value, asin: asinValue, available: !unavailable, selected: !!selectedOption };
-      if (existing) Object.assign(existing, { asin: existing.asin || next.asin, available: existing.available || next.available, selected: existing.selected || next.selected });
+      const next = { value, asin: asinValue, available: !unavailable, selected: !!selectedOption, price: readOptionPrice(option), currency: readOptionCurrency(option) };
+      if (existing) Object.assign(existing, { asin: existing.asin || next.asin, available: existing.available || next.available, selected: existing.selected || next.selected, price: existing.price || next.price, currency: existing.currency || next.currency });
       else current.options.push(next);
       if (selectedOption && !current.selected) current.selected = value;
     });
