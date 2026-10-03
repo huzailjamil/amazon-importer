@@ -11,7 +11,7 @@ async function readActiveAmazonProduct() {
 }
 
 document.getElementById("copy").addEventListener("click", async () => {
-  status.textContent = "Reading page…";
+  status.textContent = "Reading product and variation prices…";
   try {
     const result = await readActiveAmazonProduct();
     await navigator.clipboard.writeText(JSON.stringify(result));
@@ -22,7 +22,7 @@ document.getElementById("copy").addEventListener("click", async () => {
 });
 
 document.getElementById("send").addEventListener("click", async () => {
-  status.textContent = "Reading product and opening dashboard…";
+  status.textContent = "Reading product and variation prices…";
   try {
     const product = await readActiveAmazonProduct();
     const pending = { id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, product };
@@ -43,7 +43,7 @@ document.getElementById("send").addEventListener("click", async () => {
   }
 });
 
-function extractAmazonProduct() {
+async function extractAmazonProduct() {
   const clean = value => String(value || "").replace(/\s+/g, " ").trim();
   const safeText = element => {
     if (!element) return "";
@@ -94,6 +94,7 @@ function extractAmazonProduct() {
   const categories = [...document.querySelectorAll("#wayfinding-breadcrumbs_feature_div li a, #wayfinding-breadcrumbs_container li a")]
     .map(safeText).filter(Boolean);
   const variationMap = new Map();
+  const variantProductsMap = new Map();
   const titleCase = value => clean(value).replace(/_name$/i, "").replace(/[_-]+/g, " ").replace(/\b\w/g, letter => letter.toUpperCase());
   const dimensionKey = element => {
     const id = element?.id || "";
@@ -198,6 +199,21 @@ function extractAmazonProduct() {
     const dimensions = readJsonValueAfter(source, "dimensions", "[", "]");
     const displayData = readJsonValueAfter(source, "dimensionValuesDisplayData", "{", "}");
     if (!Array.isArray(dimensions) || !displayData || typeof displayData !== "object") continue;
+    Object.entries(displayData).forEach(([variantAsin, values]) => {
+      if (!/^[A-Z0-9]{10}$/i.test(variantAsin) || !Array.isArray(values)) return;
+      const options = {};
+      dimensions.forEach((dimension, index) => {
+        const value = clean(values[index]);
+        if (value) options[titleCase(dimension)] = value;
+      });
+      variantProductsMap.set(variantAsin.toUpperCase(), {
+        asin: variantAsin.toUpperCase(),
+        options,
+        price: "",
+        currency: "",
+        available: true
+      });
+    });
     dimensions.forEach((dimension, index) => {
       const key = clean(dimension).replace(/_name$/i, "");
       const syntheticOptions = Object.entries(displayData).map(([optionAsin, values]) => {
@@ -256,6 +272,97 @@ function extractAmazonProduct() {
   else if (priceText.includes("₹")) currency = "INR";
   else if (priceText.includes("د.إ")) currency = "AED";
   else if (priceText.includes("$")) currency = location.hostname.endsWith(".ca") ? "CAD" : location.hostname.endsWith(".com.au") ? "AUD" : "USD";
+
+  const parsePrice = value => {
+    const match = clean(value).replace(/\s/g, "").match(/\d+(?:[.,]\d{3})*(?:[.,]\d{2})?/);
+    if (!match) return "";
+    let amount = match[0];
+    const lastComma = amount.lastIndexOf(",");
+    const lastDot = amount.lastIndexOf(".");
+    if (lastComma >= 0 && lastDot >= 0) {
+      const decimal = lastComma > lastDot ? "," : ".";
+      amount = amount.replace(decimal === "," ? /\./g : /,/g, "").replace(decimal, ".");
+    } else if (lastComma >= 0 && amount.length - lastComma - 1 === 2) {
+      amount = amount.replace(/\./g, "").replace(",", ".");
+    } else {
+      amount = amount.replace(/,/g, "");
+    }
+    return /^\d+(?:\.\d+)?$/.test(amount) ? amount : "";
+  };
+  const currencyFromPrice = value => {
+    if (value.includes("£")) return "GBP";
+    if (value.includes("€")) return "EUR";
+    if (value.includes("₹")) return "INR";
+    if (value.includes("د.إ")) return "AED";
+    if (value.includes("$")) return location.hostname.endsWith(".ca") ? "CAD" : location.hostname.endsWith(".com.au") ? "AUD" : "USD";
+    return currency;
+  };
+
+  // Some pages expose only the selected price. Read each variation ASIN through
+  // the signed-in Amazon page so changed prices are captured without an API.
+  variations.forEach(dimension => {
+    dimension.options.forEach(option => {
+      if (!option.asin) return;
+      const existing = variantProductsMap.get(option.asin) || {
+        asin: option.asin,
+        options: {},
+        price: "",
+        currency: "",
+        available: option.available !== false
+      };
+      if (!existing.options[dimension.name]) existing.options[dimension.name] = option.value;
+      variantProductsMap.set(option.asin, existing);
+    });
+  });
+  if (asin && !variantProductsMap.has(asin)) {
+    const selectedOptions = {};
+    variations.forEach(dimension => {
+      if (dimension.selected) selectedOptions[dimension.name] = dimension.selected;
+    });
+    variantProductsMap.set(asin, { asin, options: selectedOptions, price: "", currency: "", available: true });
+  }
+
+  const variantProducts = [...variantProductsMap.values()].slice(0, 50);
+  const selectedPrice = parsePrice(priceText);
+  const selectedVariant = variantProducts.find(variant => variant.asin === asin);
+  if (selectedVariant) {
+    selectedVariant.price = selectedPrice;
+    selectedVariant.currency = currency;
+  }
+  const priceSelectors = ["#corePrice_feature_div .a-price .a-offscreen", "#corePriceDisplay_desktop_feature_div .a-price .a-offscreen", "#priceblock_ourprice", "#priceblock_dealprice", ".a-price .a-offscreen"];
+  const queue = variantProducts.filter(variant => variant.asin !== asin);
+  let queueIndex = 0;
+  const workers = Array.from({ length: Math.min(3, queue.length) }, async () => {
+    while (queueIndex < queue.length) {
+      const variant = queue[queueIndex++];
+      try {
+        const response = await fetch(`/dp/${variant.asin}?th=1&psc=1`, { credentials: "include" });
+        if (!response.ok) continue;
+        const html = await response.text();
+        if (/captcha|enter the characters you see below|robot check/i.test(html)) continue;
+        const variantDocument = new DOMParser().parseFromString(html, "text/html");
+        let variantPriceText = "";
+        for (const selector of priceSelectors) {
+          variantPriceText = safeText(variantDocument.querySelector(selector));
+          if (variantPriceText) break;
+        }
+        variant.price = parsePrice(variantPriceText);
+        variant.currency = currencyFromPrice(variantPriceText);
+        variant.available = !/currently unavailable|temporarily out of stock/i.test(safeText(variantDocument.querySelector("#availability, #outOfStock")));
+      } catch {}
+    }
+  });
+  await Promise.all(workers);
+
+  const priceByAsin = new Map(variantProducts.map(variant => [variant.asin, variant]));
+  variations.forEach(dimension => dimension.options.forEach(option => {
+    const variant = priceByAsin.get(option.asin);
+    if (variant?.price) {
+      option.price = variant.price;
+      option.currency = variant.currency;
+    }
+  }));
+
   return {
     sourceUrl: asin ? `${location.origin}/dp/${asin}` : location.href,
     title,
@@ -272,6 +379,7 @@ function extractAmazonProduct() {
     tags: sourceTags,
     productType: categories.at(-1) || "",
     variations,
+    variantProducts,
     availability,
     rating,
     reviewCount
