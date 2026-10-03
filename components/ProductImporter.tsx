@@ -2,14 +2,15 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
-type VariationOption = { value: string; asin?: string; available?: boolean; selected?: boolean };
+type VariationOption = { value: string; asin?: string; available?: boolean; selected?: boolean; price?: string; currency?: string };
 type Variation = { name: string; selected?: string; options: VariationOption[] };
+type VariantProduct = { asin: string; options: Record<string, string>; price?: string; currency?: string; available?: boolean };
 type ProductVideo = { url: string; poster?: string };
 type Facts = {
   sourceUrl?: string; title?: string; description?: string; brand?: string; sku?: string;
   price?: string; currency?: string; images?: string[]; videos?: ProductVideo[]; features?: string[];
   specifications?: Record<string, string>; categories?: string[]; tags?: string[]; productType?: string;
-  variations?: Variation[]; availability?: string; rating?: string; reviewCount?: string;
+  variations?: Variation[]; variantProducts?: VariantProduct[]; availability?: string; rating?: string; reviewCount?: string;
 };
 type Product = { title: string; descriptionHtml: string; seoTitle: string; metaDescription: string; tags: string[]; primaryKeyword: string; secondaryKeywords: string[]; imageAltText: string[]; seoScore: number };
 type Store = { id: string; name: string; domain: string };
@@ -34,6 +35,9 @@ function normalizeFacts(parsed: Facts): Facts {
     tags: Array.isArray(parsed.tags) ? parsed.tags.filter(value => typeof value === "string").slice(0, 30) : [],
     productType: typeof parsed.productType === "string" ? parsed.productType : "",
     variations: Array.isArray(parsed.variations) ? parsed.variations.filter(item => item && typeof item.name === "string" && Array.isArray(item.options)).slice(0, 10) : [],
+    variantProducts: Array.isArray(parsed.variantProducts) ? parsed.variantProducts
+      .filter(variant => variant && typeof variant.asin === "string" && variant.options && typeof variant.options === "object")
+      .slice(0, 100) : [],
     availability: typeof parsed.availability === "string" ? parsed.availability : "",
     rating: typeof parsed.rating === "string" ? parsed.rating : "",
     reviewCount: typeof parsed.reviewCount === "string" ? parsed.reviewCount : ""
@@ -218,7 +222,8 @@ export default function ProductImporter({ stores }: { stores: Store[] }) {
         {!!facts.categories?.length && <div className="mini-section"><span>Amazon categories</span><div className="breadcrumb-list">{facts.categories.join(" › ")}</div></div>}
         {!!facts.tags?.length && <div className="mini-section"><span>Source tags</span><div className="chips">{facts.tags.map(tag => <span key={tag}>{tag}</span>)}</div></div>}
         {!!Object.keys(facts.specifications || {}).length && <div className="mini-section"><span>Specifications ({Object.keys(facts.specifications || {}).length})</span><div className="spec-grid">{Object.entries(facts.specifications || {}).map(([key, value]) => <div key={key}><strong>{key}</strong><span>{value}</span></div>)}</div></div>}
-        {!!facts.variations?.length && <div className="mini-section"><span>Variations ({facts.variations.length})</span><div className="variation-list">{facts.variations.map(variation => <div key={variation.name}><strong>{variation.name}{variation.selected ? `: ${variation.selected}` : ""}</strong><div className="chips">{variation.options.map(option => <span className={option.available === false ? "unavailable" : option.selected ? "selected" : ""} key={`${variation.name}-${option.value}`}>{option.value}{option.asin ? ` · ${option.asin}` : ""}</span>)}</div></div>)}</div></div>}
+        {!!facts.variations?.length && <div className="mini-section"><span>Variations ({facts.variations.length})</span><div className="variation-list">{facts.variations.map(variation => <div key={variation.name}><strong>{variation.name}{variation.selected ? `: ${variation.selected}` : ""}</strong><div className="chips">{variation.options.map(option => <span className={option.available === false ? "unavailable" : option.selected ? "selected" : ""} key={`${variation.name}-${option.value}`}>{option.value}{option.price ? ` · ${option.currency || facts.currency || ""} ${option.price}`.trim() : ""}{option.asin ? ` · ${option.asin}` : ""}</span>)}</div></div>)}</div></div>}
+        {!!facts.variantProducts?.some(variant => variant.price) && <div className="mini-section"><span>Variation pricing ({facts.variantProducts.filter(variant => variant.price).length})</span><div className="spec-grid">{facts.variantProducts.filter(variant => variant.price).map(variant => <div key={variant.asin}><strong>{Object.entries(variant.options).map(([name, value]) => `${name}: ${value}`).join(" · ") || variant.asin}</strong><span>{`${variant.currency || facts.currency || ""} ${variant.price}`.trim()} · {variant.asin}</span></div>)}</div></div>}
         <div className="mini-section">
           <span>Extracted images ({facts.images?.length || 0})</span>
           {facts.images?.length ? <div className="product-image-grid">{facts.images.map((image, index) => <div className="product-image" key={image}><img src={image} alt={`Extracted product image ${index + 1}`} /><button type="button" onClick={() => setFacts({ ...facts, images: facts.images?.filter(item => item !== image) })}>Remove</button></div>)}</div> : <div className="image-empty">Images found on the product page will appear here.</div>}
